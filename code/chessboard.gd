@@ -40,6 +40,7 @@ const color_highlight = Color(0.0, 0.0, 1.0, 0.0)
 var highlighted_tiles = []
 var selected_piece = null
 var color_to_move = WHITE
+var pawn_that_doubled_last_move = null
 
 func create_chessboard():
 	for i in range(8):
@@ -88,20 +89,37 @@ func is_highlighted(tile):
 			return(true)
 	return(false)
 
+func move_piece(to_tile):
+	var taken_piece = get_piece_at_tile(to_tile)
+	if(taken_piece != null):
+		remove_child(taken_piece)
+	else:
+		# NOTE(hugo): check if the taken piece is en passant
+		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - selected_piece.chess_pos.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - selected_piece.chess_pos.y) == 0):
+			remove_child(pawn_that_doubled_last_move)
+
+	if(selected_piece.type == PAWN && abs(selected_piece.chess_pos.y - to_tile.y) == 2):
+		pawn_that_doubled_last_move = selected_piece
+	else:
+		pawn_that_doubled_last_move = null
+
+	selected_piece.move_to(to_tile)
+	color_to_move = opposite_color(color_to_move)
+	highlighted_tiles = []
+
+func display_possible_moves(tile_clicked):
+	selected_piece = get_piece_at_tile(tile_clicked)
+	highlighted_tiles = []
+	if(selected_piece && selected_piece.color == color_to_move):
+		highlighted_tiles += get_possible_moves(selected_piece)
+
 func _input(event):
 	if event is InputEventMouseButton:
 		var tile_clicked = get_tile_clicked(event.position)
 		if(is_highlighted(tile_clicked)):
-			var taken_piece = get_piece_at_tile(tile_clicked)
-			if(taken_piece != null):
-				remove_child(taken_piece)
-			selected_piece.move_to(tile_clicked)
-			highlighted_tiles = []
+			move_piece(tile_clicked)
 		else:
-			selected_piece = get_piece_at_tile(tile_clicked)
-			highlighted_tiles = []
-			if(selected_piece):
-				highlighted_tiles += get_possible_moves(selected_piece)
+			display_possible_moves(tile_clicked)
 		update()
 
 func get_tile_clicked(mouse_pos):
@@ -134,17 +152,30 @@ func get_possible_moves(piece):
 
 func get_pawn_moves(piece):
 	var result = []
+
 	if(piece.color == WHITE):
 		var is_starting_col = (piece.chess_pos.y == 1)
 		result += add_pos_if_no_piece(piece.chess_pos + Vector2(0, 1))
+		if(is_tile_no_friendly(piece.chess_pos + Vector2(-1, 1), WHITE)):
+			result.append(piece.chess_pos + Vector2(-1, 1))
+		if(is_tile_no_friendly(piece.chess_pos + Vector2(1, 1), WHITE)):
+			result.append(piece.chess_pos + Vector2(1, 1))
 		if(is_starting_col && is_free_tile(piece.chess_pos + Vector2(0, 1))):
 			result += add_pos_if_no_piece(piece.chess_pos + Vector2(0, 2))
+		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - piece.chess_pos.x) == 1 && pawn_that_doubled_last_move.chess_pos.y == piece.chess_pos.y):
+			result += add_pos_if_no_piece(Vector2(pawn_that_doubled_last_move.chess_pos.x, piece.chess_pos.y + 1))
 
 	if(piece.color == BLACK):
 		var is_starting_col = (piece.chess_pos.y == 6)
 		result += add_pos_if_no_piece(piece.chess_pos - Vector2(0, 1))
+		if(is_tile_no_friendly(piece.chess_pos + Vector2(-1, -1), BLACK)):
+			result.append(piece.chess_pos + Vector2(-1, -1))
+		if(is_tile_no_friendly(piece.chess_pos + Vector2(1, -1), BLACK)):
+			result.append(piece.chess_pos + Vector2(1, -1))
 		if(is_starting_col && is_free_tile(piece.chess_pos - Vector2(0, 1))):
 			result += add_pos_if_no_piece(piece.chess_pos - Vector2(0, 2))
+		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - piece.chess_pos.x) == 1 && pawn_that_doubled_last_move.chess_pos.y == piece.chess_pos.y):
+			result += add_pos_if_no_piece(Vector2(pawn_that_doubled_last_move.chess_pos.x, piece.chess_pos.y - 1))
 
 	return(result)
 
@@ -217,8 +248,8 @@ func get_knight_moves(piece):
 func is_in_board(tile):
 	return(tile.x >= 0 && tile.x < 8 && tile.y >= 0 && tile.y < 8)
 
-func opposite_color(piece):
-	if(piece.color == WHITE):
+func opposite_color(color):
+	if(color == WHITE):
 		return(BLACK)
 	else:
 		return(WHITE)
@@ -237,17 +268,16 @@ func add_pos_if_no_piece(tile):
 func is_tile_free_or_no_friendly(tile, test_piece_color):
 	if(is_in_board(tile)):
 		var piece = get_piece_at_tile(tile)
-		return((piece == null) || (test_piece_color == opposite_color(piece)))
+		return((piece == null) || (test_piece_color == opposite_color(piece.color)))
 	return(false)
 
 func is_tile_no_friendly(tile, test_piece_color):
 	if(is_in_board(tile)):
 		var piece = get_piece_at_tile(tile)
-		return((piece != null) && (test_piece_color == opposite_color(piece)))
+		return((piece != null) && (test_piece_color == opposite_color(piece.color)))
 	return(false)
 
 func add_pos_if_no_friendly_piece(tile, test_piece_color):
 	if(is_tile_free_or_no_friendly(tile, test_piece_color)):
 		return([tile])
 	return([])
-
