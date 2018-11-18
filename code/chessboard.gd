@@ -8,27 +8,18 @@ const PieceTypeName = ["King", "Queen", "Rook", "Knight", "Bishop", "Pawn"]
 
 #####################################################
 # {
-class Piece extends Node2D:
-	var color;
-	var type;
-	var chess_pos;
-
-	func chess_pos_to_absolute(chess_pos):
-		var offset = Vector2(0.5 * TILE_SIZE, -0.5 * TILE_SIZE)
-		return(Vector2(TILE_SIZE * chess_pos.x, TILE_SIZE * (8 - chess_pos.y)) + offset)
+class Piece:
+	var color
+	var type
+	var chess_pos
 
 	func _init(piece_color, piece_type, piece_pos):
 		color = piece_color;
 		type = piece_type;
 		chess_pos = piece_pos;
-		position = chess_pos_to_absolute(chess_pos)
-		var sprite = Sprite.new();
-		sprite.texture = load("res://data/images/" + PieceColorName[piece_color] + PieceTypeName[piece_type] + ".png")
-		add_child(sprite)
 
 	func move_to(tile):
 		chess_pos = tile
-		position = chess_pos_to_absolute(chess_pos)
 # }
 #####################################################
 
@@ -37,37 +28,49 @@ const color_white = Color(1.0, 1.0, 1.0, 1.0)
 const color_green = Color(64.0 / 255.0, 146.0 / 255.0, 59.0 / 255.0)
 const color_highlight = Color(0.0, 0.0, 1.0, 0.0)
 
+
 var highlighted_tiles = []
-var selected_piece = null
+var piece_textures = []
 var color_to_move = WHITE
 var pawn_that_doubled_last_move = null
+var piece_list = []
+var selected_piece = null
+
+func chess_pos_to_absolute(chess_pos):
+	return(Vector2(TILE_SIZE * chess_pos.x, TILE_SIZE * (7 - chess_pos.y)))
+
+func load_textures():
+	for type in range(6):
+		for color in range(2):
+			piece_textures.append(load("res://data/images/" + PieceColorName[color] + PieceTypeName[type] + ".png"))
 
 func create_chessboard():
 	for i in range(8):
-		add_child(Piece.new(BLACK, PAWN, Vector2(i, 6)))
-		add_child(Piece.new(WHITE, PAWN, Vector2(i, 1)))
+		create_piece(BLACK, PAWN, Vector2(i, 6))
+		create_piece(WHITE, PAWN, Vector2(i, 1))
 
-	add_child(Piece.new(WHITE, ROOK, Vector2(0, 0)))
-	add_child(Piece.new(WHITE, ROOK, Vector2(7, 0)))
-	add_child(Piece.new(BLACK, ROOK, Vector2(0, 7)))
-	add_child(Piece.new(BLACK, ROOK, Vector2(7, 7)))
+	create_piece(WHITE, ROOK, Vector2(0, 0))
+	create_piece(WHITE, ROOK, Vector2(7, 0))
+	create_piece(BLACK, ROOK, Vector2(0, 7))
+	create_piece(BLACK, ROOK, Vector2(7, 7))
 
-	add_child(Piece.new(WHITE, KNIGHT, Vector2(1, 0)))
-	add_child(Piece.new(WHITE, KNIGHT, Vector2(6, 0)))
-	add_child(Piece.new(BLACK, KNIGHT, Vector2(1, 7)))
-	add_child(Piece.new(BLACK, KNIGHT, Vector2(6, 7)))
+	create_piece(WHITE, KNIGHT, Vector2(1, 0))
+	create_piece(WHITE, KNIGHT, Vector2(6, 0))
+	create_piece(BLACK, KNIGHT, Vector2(1, 7))
+	create_piece(BLACK, KNIGHT, Vector2(6, 7))
 
-	add_child(Piece.new(WHITE, BISHOP, Vector2(2, 0)))
-	add_child(Piece.new(WHITE, BISHOP, Vector2(5, 0)))
-	add_child(Piece.new(BLACK, BISHOP, Vector2(2, 7)))
-	add_child(Piece.new(BLACK, BISHOP, Vector2(5, 7)))
+	create_piece(WHITE, BISHOP, Vector2(2, 0))
+	create_piece(WHITE, BISHOP, Vector2(5, 0))
+	create_piece(BLACK, BISHOP, Vector2(2, 7))
+	create_piece(BLACK, BISHOP, Vector2(5, 7))
 
-	add_child(Piece.new(WHITE, QUEEN, Vector2(4, 0)))
-	add_child(Piece.new(BLACK, QUEEN, Vector2(4, 7)))
-	add_child(Piece.new(WHITE, KING, Vector2(3, 0)))
-	add_child(Piece.new(BLACK, KING, Vector2(3, 7)))
+	create_piece(WHITE, QUEEN, Vector2(4, 0))
+	create_piece(BLACK, QUEEN, Vector2(4, 7))
+	create_piece(WHITE, KING, Vector2(3, 0))
+	create_piece(BLACK, KING, Vector2(3, 7))
 
 func _ready():
+	load_textures()
 	create_chessboard()
 
 func _draw():
@@ -83,12 +86,39 @@ func _draw():
 				color = color_highlight
 			draw_rect(rect, color, true)
 
+	for piece in piece_list:
+		var texture = piece_textures[2 * piece.type + piece.color]
+		var pos = chess_pos_to_absolute(piece.chess_pos)
+		draw_texture(texture, pos)
+			
 func is_highlighted(tile):
 	for t in highlighted_tiles:
 		if t == tile:
 			return(true)
 	return(false)
 
+func _input(event):
+	if event is InputEventMouseButton:
+		var tile_clicked = get_tile_clicked(event.position)
+		if(is_highlighted(tile_clicked)):
+			move_piece(tile_clicked)
+			highlighted_tiles = []
+
+		else:
+			display_possible_moves(tile_clicked)
+		update()
+
+func get_tile_clicked(mouse_pos):
+	var rel_pos = mouse_pos - position
+	return(Vector2(floor(rel_pos.x / TILE_SIZE), 7 - floor(rel_pos.y / TILE_SIZE)))
+
+func create_piece(color, type, chess_pos):
+	piece_list.append(Piece.new(color, type, chess_pos))
+
+# NOTE(hugo): this function must not have
+# any side effects since it is used
+# to apply a 'fake' move when checking is a move
+# is possible and the king is not under check after it
 func move_piece(to_tile):
 	var taken_piece = get_piece_at_tile(to_tile)
 	if(taken_piece != null):
@@ -98,42 +128,29 @@ func move_piece(to_tile):
 		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - selected_piece.chess_pos.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - selected_piece.chess_pos.y) == 0):
 			remove_child(pawn_that_doubled_last_move)
 
+	selected_piece.move_to(to_tile)
+
 	if(selected_piece.type == PAWN && abs(selected_piece.chess_pos.y - to_tile.y) == 2):
 		pawn_that_doubled_last_move = selected_piece
 	else:
 		pawn_that_doubled_last_move = null
 
-	selected_piece.move_to(to_tile)
 	color_to_move = opposite_color(color_to_move)
-	highlighted_tiles = []
 
 func display_possible_moves(tile_clicked):
 	selected_piece = get_piece_at_tile(tile_clicked)
 	highlighted_tiles = []
 	if(selected_piece && selected_piece.color == color_to_move):
 		highlighted_tiles += get_possible_moves(selected_piece)
-
-func _input(event):
-	if event is InputEventMouseButton:
-		var tile_clicked = get_tile_clicked(event.position)
-		if(is_highlighted(tile_clicked)):
-			move_piece(tile_clicked)
-		else:
-			display_possible_moves(tile_clicked)
-		update()
-
-func get_tile_clicked(mouse_pos):
-	var rel_pos = mouse_pos - position
-	return(Vector2(floor(rel_pos.x / TILE_SIZE), 7 - floor(rel_pos.y / TILE_SIZE)))
+	return(highlighted_tiles)
 
 func get_piece_at_tile(tile):
-	for child in get_children():
-		if child.chess_pos == tile:
-			return(child)
+	for piece in piece_list:
+		if piece.chess_pos == tile:
+			return(piece)
 	return(null)
 
-func get_possible_moves(piece):
-	#var result = [piece.chess_pos]
+func get_pure_list_move(piece):
 	var result = []
 	match piece.type:
 		KING:
@@ -148,7 +165,47 @@ func get_possible_moves(piece):
 			result += get_bishop_moves(piece)
 		PAWN:
 			result += get_pawn_moves(piece)
+	return(result)
+
+func get_possible_moves(piece):
+	#var result = [piece.chess_pos]
+	var result = get_pure_list_move(piece)
+	result = delete_moves_that_makes_check(result, piece.color)
 	return result
+
+func is_king_in_check(player_color):
+	for piece in piece_list:
+		if(piece.color == opposite_color(player_color)):
+			var piece_moves = get_pure_list_move(piece)
+			for move in piece_moves:
+				var piece_under_move = get_piece_at_tile(move)
+				if(piece_under_move && piece_under_move.type == KING && piece_under_move.color == player_color):
+					return(true)
+	return(false)
+
+func is_king_in_check_with_move(move, player_color):
+	#var previous_board_state = []
+	#for child in get_children():
+	#	previous_board_state.append(Piece.new(child.color, child.type, child.chess_pos, piece_textures))
+
+	#move_piece(move)
+
+	#var result = is_king_in_check(player_color)
+
+	## NOTE(hugo): Reset to previous state
+	#for child in get_children():
+	#	remove_child(child)
+	#for child in previous_board_state:
+	#	add_child(Piece.new(child.color, child.type, child.chess_pos, piece_textures))
+	#
+	#return(result)
+	return(false)
+
+func delete_moves_that_makes_check(move_list, player_color):
+	for move in move_list:
+		if(is_king_in_check_with_move(move, player_color)):
+			move_list.erase(move)
+	return(move_list)
 
 func get_pawn_moves(piece):
 	var result = []
@@ -190,19 +247,6 @@ func get_king_moves(piece):
 	result += add_pos_if_no_friendly_piece(piece.chess_pos + Vector2(-1, 1), piece.color)
 	result += add_pos_if_no_friendly_piece(piece.chess_pos + Vector2(-1, -1), piece.color)
 	# TODO(hugo): castling
-	return(result)
-
-func add_all_pos_in_dir(piece, dir):
-	var result = []
-	for i in range(1, 8):
-		var test_tile = piece.chess_pos + i * dir
-		if(is_tile_free_or_no_friendly(test_tile, piece.color)):
-			result.append(test_tile)
-			if(is_tile_no_friendly(test_tile, piece.color)):
-				break
-		else:
-			break
-
 	return(result)
 
 func get_queen_moves(piece):
@@ -260,11 +304,6 @@ func is_free_tile(tile):
 		return(piece == null)
 	return(false)
 
-func add_pos_if_no_piece(tile):
-	if(is_free_tile(tile)):
-		return([tile])
-	return([])
-
 func is_tile_free_or_no_friendly(tile, test_piece_color):
 	if(is_in_board(tile)):
 		var piece = get_piece_at_tile(tile)
@@ -281,3 +320,22 @@ func add_pos_if_no_friendly_piece(tile, test_piece_color):
 	if(is_tile_free_or_no_friendly(tile, test_piece_color)):
 		return([tile])
 	return([])
+
+func add_pos_if_no_piece(tile):
+	if(is_free_tile(tile)):
+		return([tile])
+	return([])
+
+func add_all_pos_in_dir(piece, dir):
+	var result = []
+	for i in range(1, 8):
+		var test_tile = piece.chess_pos + i * dir
+		if(is_tile_free_or_no_friendly(test_tile, piece.color)):
+			result.append(test_tile)
+			if(is_tile_no_friendly(test_tile, piece.color)):
+				break
+		else:
+			break
+
+	return(result)
+
