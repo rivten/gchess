@@ -17,9 +17,6 @@ class Piece:
 		color = piece_color;
 		type = piece_type;
 		chess_pos = piece_pos;
-
-	func move_to(tile):
-		chess_pos = tile
 # }
 #####################################################
 
@@ -101,7 +98,16 @@ func _input(event):
 	if event is InputEventMouseButton:
 		var tile_clicked = get_tile_clicked(event.position)
 		if(is_highlighted(tile_clicked)):
+			var selected_piece_prev_pos = selected_piece.chess_pos
 			move_piece(tile_clicked)
+
+			if(selected_piece.type == PAWN && abs(selected_piece_prev_pos.y - tile_clicked.y) == 2):
+				pawn_that_doubled_last_move = selected_piece
+			else:
+				pawn_that_doubled_last_move = null
+
+
+			color_to_move = opposite_color(color_to_move)
 			highlighted_tiles = []
 
 		else:
@@ -122,20 +128,13 @@ func create_piece(color, type, chess_pos):
 func move_piece(to_tile):
 	var taken_piece = get_piece_at_tile(to_tile)
 	if(taken_piece != null):
-		remove_child(taken_piece)
+		piece_list.erase(taken_piece)
 	else:
 		# NOTE(hugo): check if the taken piece is en passant
 		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - selected_piece.chess_pos.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - selected_piece.chess_pos.y) == 0):
-			remove_child(pawn_that_doubled_last_move)
+			piece_list.erase(pawn_that_doubled_last_move)
 
-	selected_piece.move_to(to_tile)
-
-	if(selected_piece.type == PAWN && abs(selected_piece.chess_pos.y - to_tile.y) == 2):
-		pawn_that_doubled_last_move = selected_piece
-	else:
-		pawn_that_doubled_last_move = null
-
-	color_to_move = opposite_color(color_to_move)
+	selected_piece.chess_pos = to_tile
 
 func display_possible_moves(tile_clicked):
 	selected_piece = get_piece_at_tile(tile_clicked)
