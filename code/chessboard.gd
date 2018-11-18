@@ -25,7 +25,6 @@ const color_white = Color(1.0, 1.0, 1.0, 1.0)
 const color_green = Color(64.0 / 255.0, 146.0 / 255.0, 59.0 / 255.0)
 const color_highlight = Color(0.0, 0.0, 1.0, 0.0)
 
-
 var highlighted_tiles = []
 var piece_textures = []
 var color_to_move = WHITE
@@ -167,7 +166,6 @@ func get_pure_list_move(piece):
 	return(result)
 
 func get_possible_moves(piece):
-	#var result = [piece.chess_pos]
 	var result = get_pure_list_move(piece)
 	result = delete_moves_that_makes_check(result, piece.color)
 	return result
@@ -183,22 +181,25 @@ func is_king_in_check(player_color):
 	return(false)
 
 func is_king_in_check_with_move(move, player_color):
-	#var previous_board_state = []
-	#for child in get_children():
-	#	previous_board_state.append(Piece.new(child.color, child.type, child.chess_pos, piece_textures))
+	# TODO(hugo): I don't think this could take into account a
+	# en-passant move that could put the king in check :(
+	var previous_board_state = piece_list.duplicate()
+	#for piece in piece_list:
+		#previous_board_state.append(Piece.new(piece.color, piece.type, piece.chess_pos))
 
-	#move_piece(move)
+	move_piece(move)
 
-	#var result = is_king_in_check(player_color)
+	var result = is_king_in_check(player_color)
 
-	## NOTE(hugo): Reset to previous state
-	#for child in get_children():
-	#	remove_child(child)
-	#for child in previous_board_state:
-	#	add_child(Piece.new(child.color, child.type, child.chess_pos, piece_textures))
-	#
-	#return(result)
-	return(false)
+	# NOTE(hugo): Reset to previous state
+	for piece in piece_list:
+		piece_list.erase(piece)
+	#for piece in previous_board_state:
+		#piece_list.append(Piece.new(piece.color, piece.type, piece.chess_pos))
+		#previous_board_state.erase(piece)
+	piece_list = previous_board_state.duplicate()
+	
+	return(result)
 
 func delete_moves_that_makes_check(move_list, player_color):
 	for move in move_list:
