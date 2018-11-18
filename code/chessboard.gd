@@ -17,6 +17,9 @@ class Piece:
 		color = piece_color;
 		type = piece_type;
 		chess_pos = piece_pos;
+
+	func str_piece():
+		return(PieceTypeName[type] + " " + PieceColorName[color] + " " + str(chess_pos))
 # }
 #####################################################
 
@@ -110,7 +113,12 @@ func _input(event):
 			highlighted_tiles = []
 
 		else:
+			selected_piece = get_piece_at_tile(tile_clicked)
+			#print("Before")
+			#print_state()
 			display_possible_moves(tile_clicked)
+			#print("After")
+			#print_state()
 		update()
 
 func get_tile_clicked(mouse_pos):
@@ -136,7 +144,6 @@ func move_piece(to_tile):
 	selected_piece.chess_pos = to_tile
 
 func display_possible_moves(tile_clicked):
-	selected_piece = get_piece_at_tile(tile_clicked)
 	highlighted_tiles = []
 	if(selected_piece && selected_piece.color == color_to_move):
 		highlighted_tiles += get_possible_moves(selected_piece)
@@ -183,29 +190,31 @@ func is_king_in_check(player_color):
 func is_king_in_check_with_move(move, player_color):
 	# TODO(hugo): I don't think this could take into account a
 	# en-passant move that could put the king in check :(
-	var previous_board_state = piece_list.duplicate()
-	#for piece in piece_list:
-		#previous_board_state.append(Piece.new(piece.color, piece.type, piece.chess_pos))
+	var previous_board_state = []
+	for piece in piece_list:
+		previous_board_state.append(Piece.new(piece.color, piece.type, piece.chess_pos))
 
+	var selected_piece_save_pos = selected_piece.chess_pos
 	move_piece(move)
 
 	var result = is_king_in_check(player_color)
 
 	# NOTE(hugo): Reset to previous state
-	for piece in piece_list:
-		piece_list.erase(piece)
-	#for piece in previous_board_state:
-		#piece_list.append(Piece.new(piece.color, piece.type, piece.chess_pos))
-		#previous_board_state.erase(piece)
-	piece_list = previous_board_state.duplicate()
-	
+	piece_list.clear()
+	for piece in previous_board_state:
+		piece_list.append(Piece.new(piece.color, piece.type, piece.chess_pos))
+	# TODO(hugo): are we sure that the other ref to the pawn_that_doubled_last_move is still valid after this ?
+	selected_piece = get_piece_at_tile(selected_piece_save_pos)
+
 	return(result)
 
 func delete_moves_that_makes_check(move_list, player_color):
+	var result = []
 	for move in move_list:
-		if(is_king_in_check_with_move(move, player_color)):
-			move_list.erase(move)
-	return(move_list)
+		if(!is_king_in_check_with_move(move, player_color)):
+			result.append(move)
+
+	return(result)
 
 func get_pawn_moves(piece):
 	var result = []
@@ -339,3 +348,15 @@ func add_all_pos_in_dir(piece, dir):
 
 	return(result)
 
+# NOTE(hugo): Debug
+func print_state():
+	print("-----------------------------")
+	print("Color to move : " + str(color_to_move))
+	if(pawn_that_doubled_last_move):
+		print("Double pawn pos : " + str(pawn_that_doubled_last_move.chess_pos))
+	else:
+		print("Double pawn pos : Null")
+	print("Selected : " + selected_piece.str_piece())
+	print("Piece List")
+	for piece in piece_list:
+		print(piece.str_piece())
