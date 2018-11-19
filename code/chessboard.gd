@@ -34,6 +34,7 @@ var color_to_move = WHITE
 var pawn_that_doubled_last_move = null
 var piece_list = []
 var selected_piece = null
+var stop_game = false
 
 func chess_pos_to_absolute(chess_pos):
 	return(Vector2(TILE_SIZE * chess_pos.x, TILE_SIZE * (7 - chess_pos.y)))
@@ -98,28 +99,32 @@ func is_highlighted(tile):
 
 func _input(event):
 	if event is InputEventMouseButton:
-		var tile_clicked = get_tile_clicked(event.position)
-		if(is_highlighted(tile_clicked)):
-			var selected_piece_prev_pos = selected_piece.chess_pos
-			move_piece(tile_clicked)
+        if(!stop_game):
+            var tile_clicked = get_tile_clicked(event.position)
+            if(is_highlighted(tile_clicked)):
+                var selected_piece_prev_pos = selected_piece.chess_pos
+                move_piece(selected_piece, tile_clicked)
 
-			if(selected_piece.type == PAWN && abs(selected_piece_prev_pos.y - tile_clicked.y) == 2):
-				pawn_that_doubled_last_move = selected_piece
-			else:
-				pawn_that_doubled_last_move = null
+                if(selected_piece.type == PAWN && abs(selected_piece_prev_pos.y - tile_clicked.y) == 2):
+                    pawn_that_doubled_last_move = selected_piece
+                else:
+                    pawn_that_doubled_last_move = null
 
 
-			color_to_move = opposite_color(color_to_move)
-			highlighted_tiles = []
+                color_to_move = opposite_color(color_to_move)
+                if(is_current_player_checkmate()):
+                    stop_game = true
+                    print("Checkmate!")
+                highlighted_tiles = []
 
-		else:
-			selected_piece = get_piece_at_tile(tile_clicked)
-			#print("Before")
-			#print_state()
-			display_possible_moves(tile_clicked)
-			#print("After")
-			#print_state()
-		update()
+            else:
+                selected_piece = get_piece_at_tile(tile_clicked)
+                #print("Before")
+                #print_state()
+                display_possible_moves(tile_clicked)
+                #print("After")
+                #print_state()
+            update()
 
 func get_tile_clicked(mouse_pos):
 	var rel_pos = mouse_pos - position
@@ -132,7 +137,7 @@ func create_piece(color, type, chess_pos):
 # any side effects since it is used
 # to apply a 'fake' move when checking is a move
 # is possible and the king is not under check after it
-func move_piece(to_tile):
+func move_piece(piece_to_move, to_tile):
 	var taken_piece = get_piece_at_tile(to_tile)
 	if(taken_piece != null):
 		piece_list.erase(taken_piece)
@@ -141,7 +146,7 @@ func move_piece(to_tile):
 		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - selected_piece.chess_pos.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - selected_piece.chess_pos.y) == 0):
 			piece_list.erase(pawn_that_doubled_last_move)
 
-	selected_piece.chess_pos = to_tile
+	piece_to_move.chess_pos = to_tile
 
 func display_possible_moves(tile_clicked):
 	highlighted_tiles = []
@@ -174,7 +179,7 @@ func get_pure_list_move(piece):
 
 func get_possible_moves(piece):
 	var result = get_pure_list_move(piece)
-	result = delete_moves_that_makes_check(result, piece.color)
+	result = delete_moves_that_makes_check(piece, result, piece.color)
 	return result
 
 func is_king_in_check(player_color):
@@ -187,7 +192,7 @@ func is_king_in_check(player_color):
 					return(true)
 	return(false)
 
-func is_king_in_check_with_move(move, player_color):
+func is_king_in_check_with_move(piece_to_move, move, player_color):
 	# TODO(hugo): I don't think this could take into account a
 	# en-passant move that could put the king in check :(
 	var previous_board_state = []
@@ -195,7 +200,7 @@ func is_king_in_check_with_move(move, player_color):
 		previous_board_state.append(Piece.new(piece.color, piece.type, piece.chess_pos))
 
 	var selected_piece_save_pos = selected_piece.chess_pos
-	move_piece(move)
+	move_piece(piece_to_move, move)
 
 	var result = is_king_in_check(player_color)
 
@@ -208,10 +213,10 @@ func is_king_in_check_with_move(move, player_color):
 
 	return(result)
 
-func delete_moves_that_makes_check(move_list, player_color):
+func delete_moves_that_makes_check(piece, move_list, player_color):
 	var result = []
 	for move in move_list:
-		if(!is_king_in_check_with_move(move, player_color)):
+		if(!is_king_in_check_with_move(piece, move, player_color)):
 			result.append(move)
 
 	return(result)
@@ -360,3 +365,16 @@ func print_state():
 	print("Piece List")
 	for piece in piece_list:
 		print(piece.str_piece())
+
+func is_current_player_checkmate():
+    if(is_king_in_check(color_to_move)):
+        for piece in piece_list:
+            if(piece.color == color_to_move):
+                var moves = get_possible_moves(piece)
+                if(moves.size() != 0):
+                    return(false)
+        return(true)
+    else:
+        return(false)
+
+
