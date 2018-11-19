@@ -1,7 +1,6 @@
 extends Node2D
 
 # TODO(hugo):
-#     - proper pat
 #     - refactor movement to have something more flexible (a movement is a piece with a from and to tile, + maybe special moves (castling, en passant))
 #     - basic IA
 
@@ -157,9 +156,9 @@ func _input(event):
 				if(is_current_player_checkmate()):
 					stop_game = true
 					print("Checkmate!")
-				if(is_pat()):
+				if(is_draw()):
 					stop_game = true
-					print("Pat!")
+					print("Draw!")
 
 				highlighted_tiles = []
 
@@ -508,12 +507,59 @@ func is_current_player_checkmate():
 	else:
 		return(false)
 
-func is_pat():
-	# TODO(hugo): Check for _ALL_ other pat conditions
+func is_piece_type_present(piece_type):
+	for piece in piece_list:
+		if(piece.type == piece_type):
+			return(true)
+	return(false)
+
+func is_bishop_present():
+	return(is_piece_type_present(BISHOP))
+
+func is_knight_present():
+	return(is_piece_type_present(KNIGHT))
+
+func get_bishops():
+	var result = []
+	for piece in piece_list:
+		if(piece.type == BISHOP):
+			result.append(piece)
+	return(result)
+
+func is_white_tile(tile):
+	return((floor(tile.x) + floor(tile.y)) % 2 != 0)
+
+func are_there_bishops_of_same_color():
+	var bishops = get_bishops()
+	assert(bishops.size() <= 2)
+	if(bishops.size() < 2):
+		return(false)
+	if(bishops[0].color == bishops[1].color):
+		return(false)
+	return(is_white_tile(bishops[0].chess_pos) == is_white_tile(bishops[1].chess_pos))
+
+func is_draw_combination():
+	if(piece_list.size() == 2):
+		# NOTE(hugo): It MUST be only two kings left
+		return(true)
+	if(piece_list.size() == 3):
+		# NOTE(hugo): There is only one piece that is not a king
+		# If it is a bishop or a knight, then it's draw.
+		# Therefore, it is sufficient to check only if such
+		# a piece is present on the board
+		return(is_bishop_present() || is_knight_present())
+	if(piece_list.size() == 4):
+		return(are_there_bishops_of_same_color())
+	return(false)
+
+func is_draw():
+	# NOTE(hugo): I am not checking for the fifty-move rule
+	# nor for the threefold repetion. Get on with it !
+	# TODO(hugo): Mutual agreement ?
 	if(!is_king_in_check(color_to_move)):
 		return(!has_move_available(color_to_move))
 	else:
-		return(false)
+		return(is_draw_combination())
 
 #########################################################
 # NOTE(hugo): Debug
