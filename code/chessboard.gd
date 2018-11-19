@@ -105,38 +105,37 @@ func is_highlighted(tile):
 
 func _input(event):
 	if event is InputEventMouseButton:
-        if(!stop_game):
-            var tile_clicked = get_tile_clicked(event.position)
-            if(is_highlighted(tile_clicked)):
-                var selected_piece_prev_pos = selected_piece.chess_pos
-                move_piece(selected_piece, tile_clicked)
+		if(!stop_game):
+			var tile_clicked = get_tile_clicked(event.position)
+			if(is_highlighted(tile_clicked)):
+				var selected_piece_prev_pos = selected_piece.chess_pos
+				move_piece(selected_piece.chess_pos, tile_clicked)
 
-                if(selected_piece.type == PAWN && abs(selected_piece_prev_pos.y - tile_clicked.y) == 2):
-                    pawn_that_doubled_last_move = selected_piece
-                else:
-                    pawn_that_doubled_last_move = null
+				if(selected_piece.type == PAWN && abs(selected_piece_prev_pos.y - tile_clicked.y) == 2):
+					pawn_that_doubled_last_move = selected_piece
+				else:
+					pawn_that_doubled_last_move = null
 
+				color_to_move = opposite_color(color_to_move)
 
-                color_to_move = opposite_color(color_to_move)
+				# NOTE(hugo): Check stopping condition
+				if(is_current_player_checkmate()):
+					stop_game = true
+					print("Checkmate!")
+				if(is_pat()):
+					stop_game = true
+					print("Pat!")
 
-                # NOTE(hugo): Check stopping condition
-                if(is_current_player_checkmate()):
-                    stop_game = true
-                    print("Checkmate!")
-                if(is_pat()):
-                    stop_game = true
-                    print("Pat!")
+				highlighted_tiles = []
 
-                highlighted_tiles = []
-
-            else:
-                selected_piece = get_piece_at_tile(tile_clicked)
-                #print("Before")
-                #print_state()
-                display_possible_moves(tile_clicked)
-                #print("After")
-                #print_state()
-            update()
+			else:
+				selected_piece = get_piece_at_tile(tile_clicked)
+				#print("Before")
+				#print_state()
+				display_possible_moves(tile_clicked)
+				#print("After")
+				#print_state()
+		update()
 
 func get_tile_clicked(mouse_pos):
 	var rel_pos = mouse_pos - position
@@ -149,8 +148,8 @@ func create_piece(color, type, chess_pos):
 # any side effects since it is used
 # to apply a 'fake' move when checking is a move
 # is possible and the king is not under check after it
-func move_piece(piece_to_move, to_tile):
-	var taken_piece = get_piece_at_tile(to_tile)
+func move_piece(move_from, move_to):
+	var taken_piece = get_piece_at_tile(move_to)
 	if(taken_piece != null):
 		piece_list.erase(taken_piece)
 	else:
@@ -158,12 +157,13 @@ func move_piece(piece_to_move, to_tile):
 		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - selected_piece.chess_pos.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - selected_piece.chess_pos.y) == 0):
 			piece_list.erase(pawn_that_doubled_last_move)
 
-	piece_to_move.chess_pos = to_tile
+	var piece_to_move = get_piece_at_tile(move_from)
+	piece_to_move.chess_pos = move_to
 
 func display_possible_moves(tile_clicked):
 	highlighted_tiles = []
 	if(selected_piece && selected_piece.color == color_to_move):
-		highlighted_tiles += get_possible_moves(selected_piece)
+		highlighted_tiles += get_possible_moves(selected_piece.chess_pos)
 	return(highlighted_tiles)
 
 func get_piece_at_tile(tile):
@@ -189,9 +189,10 @@ func get_pure_list_move(piece):
 			result += get_pawn_moves(piece)
 	return(result)
 
-func get_possible_moves(piece):
+func get_possible_moves(move_from):
+	var piece = get_piece_at_tile(move_from)
 	var result = get_pure_list_move(piece)
-	result = delete_moves_that_makes_check(piece, result, piece.color)
+	result = delete_moves_that_makes_check(move_from, result, piece.color)
 	return result
 
 func is_king_in_check(player_color):
@@ -204,7 +205,7 @@ func is_king_in_check(player_color):
 					return(true)
 	return(false)
 
-func is_king_in_check_with_move(piece_to_move, move, player_color):
+func is_king_in_check_with_move(move_from, move_to, player_color):
 	# TODO(hugo): I don't think this could take into account a
 	# en-passant move that could put the king in check :(
 	var previous_board_state = []
@@ -216,7 +217,7 @@ func is_king_in_check_with_move(piece_to_move, move, player_color):
 	if(pawn_that_doubled_last_move):
 		en_passant_save_pos = pawn_that_doubled_last_move.chess_pos
 
-	move_piece(piece_to_move, move)
+	move_piece(move_from, move_to)
 
 	var result = is_king_in_check(player_color)
 
@@ -231,11 +232,11 @@ func is_king_in_check_with_move(piece_to_move, move, player_color):
 
 	return(result)
 
-func delete_moves_that_makes_check(piece, move_list, player_color):
+func delete_moves_that_makes_check(move_from, move_list, player_color):
 	var result = []
-	for move in move_list:
-		if(!is_king_in_check_with_move(piece, move, player_color)):
-			result.append(move)
+	for move_to in move_list:
+		if(!is_king_in_check_with_move(move_from, move_to, player_color)):
+			result.append(move_to)
 
 	return(result)
 
@@ -385,24 +386,24 @@ func print_state():
 		print(piece.str_piece())
 
 func has_move_available(color_to_move):
-    for piece in piece_list:
-        if(piece.color == color_to_move):
-            var moves = get_possible_moves(piece)
-            if(moves.size() != 0):
-                return(true)
-    return(false)
+	for piece in piece_list:
+		if(piece.color == color_to_move):
+			var moves = get_possible_moves(piece.chess_pos)
+			if(moves.size() != 0):
+				return(true)
+	return(false)
 
 
 func is_current_player_checkmate():
-    if(is_king_in_check(color_to_move)):
-        return(!has_move_available(color_to_move))
-    else:
-        return(false)
+	if(is_king_in_check(color_to_move)):
+		return(!has_move_available(color_to_move))
+	else:
+		return(false)
 
 func is_pat():
-    # TODO(hugo): Check for _ALL_ other pat conditions
-    if(!is_king_in_check(color_to_move)):
-        return(!has_move_available(color_to_move))
-    else:
-        return(false)
+	# TODO(hugo): Check for _ALL_ other pat conditions
+	if(!is_king_in_check(color_to_move)):
+		return(!has_move_available(color_to_move))
+	else:
+		return(false)
 
