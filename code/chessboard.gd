@@ -29,6 +29,21 @@ class Piece:
 # }
 #####################################################
 
+#####################################################
+# {
+class CastlingTracker:
+	var has_king_rook_moved
+	var has_queen_rook_moved
+	var has_king_moved
+
+	func _init():
+		has_king_rook_moved = false
+		has_queen_rook_moved = false
+		has_king_moved = false
+# }
+#####################################################
+
+
 const TILE_SIZE = 64.0
 const color_white = Color(1.0, 1.0, 1.0, 1.0)
 const color_green = Color(64.0 / 255.0, 146.0 / 255.0, 59.0 / 255.0)
@@ -41,6 +56,8 @@ var pawn_that_doubled_last_move = null
 var piece_list = []
 var selected_piece = null
 var stop_game = false
+
+var castling_trackers = []
 
 func chess_pos_to_absolute(chess_pos):
 	return(Vector2(TILE_SIZE * chess_pos.x, TILE_SIZE * (7 - chess_pos.y)))
@@ -78,6 +95,7 @@ func create_chessboard():
 func _ready():
 	load_textures()
 	create_chessboard()
+	castling_trackers = [CastlingTracker.new(), CastlingTracker.new()]
 
 func _draw():
 	# NOTE(hugo): Draw background
@@ -122,6 +140,18 @@ func _input(event):
 					if(selected_piece.color == BLACK && selected_piece.chess_pos.y == 0):
 						selected_piece.type = QUEEN
 
+				if(selected_piece.type == KING):
+					castling_trackers[selected_piece.color].has_king_moved = true
+				if(selected_piece.type == ROOK):
+					if(selected_piece_prev_pos == Vector2(0, 0)):
+						castling_trackers[WHITE].has_queen_rook_moved = true
+					if(selected_piece_prev_pos == Vector2(7, 0)):
+						castling_trackers[WHITE].has_king_rook_moved = true
+					if(selected_piece_prev_pos == Vector2(0, 7)):
+						castling_trackers[BLACK].has_queen_rook_moved = true
+					if(selected_piece_prev_pos == Vector2(7, 7)):
+						castling_trackers[BLACK].has_king_rook_moved = true
+
 				color_to_move = opposite_color(color_to_move)
 
 				# NOTE(hugo): Check stopping condition
@@ -151,6 +181,7 @@ func create_piece(color, type, chess_pos):
 	piece_list.append(Piece.new(color, type, chess_pos))
 
 func move_piece(move_from, move_to):
+	var piece_to_move = get_piece_at_tile(move_from)
 	var taken_piece = get_piece_at_tile(move_to)
 	if(taken_piece != null):
 		piece_list.erase(taken_piece)
@@ -158,8 +189,21 @@ func move_piece(move_from, move_to):
 		# NOTE(hugo): check if the taken piece is en passant
 		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - selected_piece.chess_pos.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - selected_piece.chess_pos.y) == 0):
 			piece_list.erase(pawn_that_doubled_last_move)
+		else:
+			# NOTE(hugo): check if that was a castling
+			if(piece_to_move.type == KING && abs(move_from.x - move_to.x) == 2):
+				var row = get_base_row(color_to_move)
+				if(move_from.x > move_to.x):
+					# NOTE(hugo): Castle queen side
+					var queen_rook = get_piece_at_tile(Vector2(0, row))
+					assert(queen_rook.type == ROOK)
+					queen_rook.chess_pos = Vector2(3, row)
+				else:
+					# NOTE(hugo): Castle king side
+					var king_rook = get_piece_at_tile(Vector2(7, row))
+					assert(king_rook.type == ROOK)
+					king_rook.chess_pos = Vector2(5, row)
 
-	var piece_to_move = get_piece_at_tile(move_from)
 	piece_to_move.chess_pos = move_to
 
 func display_possible_moves(tile_clicked):
@@ -194,6 +238,9 @@ func get_pure_list_move(piece):
 func get_possible_moves(move_from):
 	var piece = get_piece_at_tile(move_from)
 	var result = get_pure_list_move(piece)
+	if(piece.type == KING):
+		result += add_castling_moves(move_from, piece.color)
+
 	result = delete_moves_that_makes_check(move_from, result, piece.color)
 	return result
 
@@ -281,7 +328,6 @@ func get_king_moves(piece):
 	result += add_pos_if_no_friendly_piece(piece.chess_pos + Vector2(1, -1), piece.color)
 	result += add_pos_if_no_friendly_piece(piece.chess_pos + Vector2(-1, 1), piece.color)
 	result += add_pos_if_no_friendly_piece(piece.chess_pos + Vector2(-1, -1), piece.color)
-	# TODO(hugo): castling
 	return(result)
 
 func get_queen_moves(piece):
@@ -372,6 +418,81 @@ func add_all_pos_in_dir(piece, dir):
 		else:
 			break
 
+	return(result)
+
+func get_base_row(color):
+	if(color == WHITE):
+		return(0)
+	else:
+		return(7)
+
+func is_king_side_available(color):
+	var row = get_base_row(color)
+	var f_piece = get_piece_at_tile(Vector2(5, row))
+	var g_piece = get_piece_at_tile(Vector2(6, row))
+	return(!f_piece && !g_piece)
+
+func is_queen_side_available(color):
+	var row = get_base_row(color)
+	var b_piece = get_piece_at_tile(Vector2(1, row))
+	var c_piece = get_piece_at_tile(Vector2(2, row))
+	var d_piece = get_piece_at_tile(Vector2(3, row))
+	return(!b_piece && !c_piece && !d_piece)
+
+func is_tile_attacked_piece(piece, tile):
+	var piece_moves = get_pure_list_move(piece)
+	for move in piece_moves:
+		if(move == tile):
+			return(true)
+	return(false)
+
+func is_tile_attacked_by_color(color, tile):
+	for piece in piece_list:
+		if(piece.color == color):
+			if(is_tile_attacked_piece(piece, tile)):
+				return(true)
+	return(false)
+
+func can_castle_king_side(color):
+	if(castling_trackers[color].has_king_moved):
+		return(false)
+	if(castling_trackers[color].has_king_rook_moved):
+		return(false)
+	if(!is_king_side_available(color)):
+		return(false)
+	var row = get_base_row(color)
+	if(is_tile_attacked_by_color(opposite_color(color), Vector2(4, row))):
+		return(false)
+	if(is_tile_attacked_by_color(opposite_color(color), Vector2(5, row))):
+		return(false)
+	if(is_tile_attacked_by_color(opposite_color(color), Vector2(6, row))):
+		return(false)
+	return(true)
+
+func can_castle_queen_side(color):
+	if(castling_trackers[color].has_king_moved):
+		return(false)
+	if(castling_trackers[color].has_queen_rook_moved):
+		return(false)
+	if(!is_queen_side_available(color)):
+		return(false)
+	var row = get_base_row(color)
+	if(is_tile_attacked_by_color(opposite_color(color), Vector2(4, row))):
+		return(false)
+	if(is_tile_attacked_by_color(opposite_color(color), Vector2(3, row))):
+		return(false)
+	if(is_tile_attacked_by_color(opposite_color(color), Vector2(2, row))):
+		return(false)
+	if(is_tile_attacked_by_color(opposite_color(color), Vector2(1, row))):
+		return(false)
+	return(true)
+
+func add_castling_moves(piece_pos, color):
+	var result = []
+	if(can_castle_king_side(color)):
+		result.append(piece_pos + Vector2(2, 0))
+	if(can_castle_queen_side(color)):
+		result.append(piece_pos + Vector2(-2, 0))
 	return(result)
 
 func has_move_available(color_to_move):
