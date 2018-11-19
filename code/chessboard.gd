@@ -9,8 +9,8 @@ extends Node2D
 enum PieceColor {WHITE, BLACK}
 enum PieceType {KING, QUEEN, ROOK, KNIGHT, BISHOP, PAWN}
 
-const PieceColorName = ["White", "Black"]
-const PieceTypeName = ["King", "Queen", "Rook", "Knight", "Bishop", "Pawn"]
+const piece_color_name = ["White", "Black"]
+const piece_type_name = ["King", "Queen", "Rook", "Knight", "Bishop", "Pawn"]
 
 #####################################################
 # {
@@ -25,7 +25,7 @@ class Piece:
 		chess_pos = piece_pos;
 
 	func str_piece():
-		return(PieceTypeName[type] + " " + PieceColorName[color] + " " + str(chess_pos))
+		return(piece_type_name[type] + " " + piece_color_name[color] + " " + str(chess_pos))
 # }
 #####################################################
 
@@ -48,7 +48,7 @@ func chess_pos_to_absolute(chess_pos):
 func load_textures():
 	for type in range(6):
 		for color in range(2):
-			piece_textures.append(load("res://data/images/" + PieceColorName[color] + PieceTypeName[type] + ".png"))
+			piece_textures.append(load("res://data/images/" + piece_color_name[color] + piece_type_name[type] + ".png"))
 
 func create_chessboard():
 	for i in range(8):
