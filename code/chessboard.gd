@@ -1,5 +1,11 @@
 extends Node2D
 
+# TODO(hugo):
+#     - proper pat
+#     - castling management
+#     - refactor movement to have something more flexible (a movement is a piece with a from and to tile, + maybe special moves (castling, en passant))
+#     - basic IA
+
 enum PieceColor {WHITE, BLACK}
 enum PieceType {KING, QUEEN, ROOK, KNIGHT, BISHOP, PAWN}
 
@@ -112,9 +118,15 @@ func _input(event):
 
 
                 color_to_move = opposite_color(color_to_move)
+
+                # NOTE(hugo): Check stopping condition
                 if(is_current_player_checkmate()):
                     stop_game = true
                     print("Checkmate!")
+                if(is_pat()):
+                    stop_game = true
+                    print("Pat!")
+
                 highlighted_tiles = []
 
             else:
@@ -200,6 +212,10 @@ func is_king_in_check_with_move(piece_to_move, move, player_color):
 		previous_board_state.append(Piece.new(piece.color, piece.type, piece.chess_pos))
 
 	var selected_piece_save_pos = selected_piece.chess_pos
+	var en_passant_save_pos = null
+	if(pawn_that_doubled_last_move):
+		en_passant_save_pos = pawn_that_doubled_last_move.chess_pos
+
 	move_piece(piece_to_move, move)
 
 	var result = is_king_in_check(player_color)
@@ -208,8 +224,10 @@ func is_king_in_check_with_move(piece_to_move, move, player_color):
 	piece_list.clear()
 	for piece in previous_board_state:
 		piece_list.append(Piece.new(piece.color, piece.type, piece.chess_pos))
-	# TODO(hugo): are we sure that the other ref to the pawn_that_doubled_last_move is still valid after this ?
+
 	selected_piece = get_piece_at_tile(selected_piece_save_pos)
+	if(en_passant_save_pos):
+		pawn_that_doubled_last_move = get_piece_at_tile(en_passant_save_pos)
 
 	return(result)
 
@@ -366,15 +384,25 @@ func print_state():
 	for piece in piece_list:
 		print(piece.str_piece())
 
+func has_move_available(color_to_move):
+    for piece in piece_list:
+        if(piece.color == color_to_move):
+            var moves = get_possible_moves(piece)
+            if(moves.size() != 0):
+                return(true)
+    return(false)
+
+
 func is_current_player_checkmate():
     if(is_king_in_check(color_to_move)):
-        for piece in piece_list:
-            if(piece.color == color_to_move):
-                var moves = get_possible_moves(piece)
-                if(moves.size() != 0):
-                    return(false)
-        return(true)
+        return(!has_move_available(color_to_move))
     else:
         return(false)
 
+func is_pat():
+    # TODO(hugo): Check for _ALL_ other pat conditions
+    if(!is_king_in_check(color_to_move)):
+        return(!has_move_available(color_to_move))
+    else:
+        return(false)
 
