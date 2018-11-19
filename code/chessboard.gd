@@ -119,6 +119,65 @@ func is_highlighted(tile):
 			return(true)
 	return(false)
 
+func get_random_piece(color):
+	var pieces_of_color = []
+	for piece in piece_list:
+		if(piece.color == color):
+			pieces_of_color.append(piece)
+	var random_index = randi() % pieces_of_color.size()
+	return(pieces_of_color[random_index])
+
+func ai_move():
+	assert(color_to_move == BLACK)
+	var random_piece = null
+	var moves = []
+	while !random_piece:
+		random_piece = get_random_piece(color_to_move)
+		moves = get_possible_moves(random_piece.chess_pos)
+		if(moves.size() == 0):
+			random_piece = null
+	assert(random_piece)
+	var random_index = randi() % moves.size()
+	var random_move_to = moves[random_index]
+	var random_piece_prev_pos = random_piece.chess_pos
+	move_piece(random_piece.chess_pos, random_move_to)
+	post_move(random_piece, random_piece_prev_pos, random_move_to)
+
+func post_move(moved_piece, moved_piece_prev_pos, move_to):
+	if(moved_piece.type == PAWN && abs(moved_piece_prev_pos.y - move_to.y) == 2):
+		pawn_that_doubled_last_move = moved_piece
+	else:
+		pawn_that_doubled_last_move = null
+
+	if(moved_piece.type == PAWN):
+		if(moved_piece.color == WHITE && moved_piece.chess_pos.y == 7):
+			moved_piece.type = QUEEN
+		if(moved_piece.color == BLACK && moved_piece.chess_pos.y == 0):
+			moved_piece.type = QUEEN
+
+	if(moved_piece.type == KING):
+		castling_trackers[moved_piece.color].has_king_moved = true
+	if(moved_piece.type == ROOK):
+		if(moved_piece_prev_pos == Vector2(0, 0)):
+			castling_trackers[WHITE].has_queen_rook_moved = true
+		if(moved_piece_prev_pos == Vector2(7, 0)):
+			castling_trackers[WHITE].has_king_rook_moved = true
+		if(moved_piece_prev_pos == Vector2(0, 7)):
+			castling_trackers[BLACK].has_queen_rook_moved = true
+		if(moved_piece_prev_pos == Vector2(7, 7)):
+			castling_trackers[BLACK].has_king_rook_moved = true
+
+	color_to_move = opposite_color(color_to_move)
+
+	# NOTE(hugo): Check stopping condition
+	if(is_current_player_checkmate()):
+		stop_game = true
+		print("Checkmate!")
+	if(is_draw()):
+		stop_game = true
+		print("Draw!")
+
+
 func _input(event):
 	if event is InputEventMouseButton:
 		if(!stop_game):
@@ -127,40 +186,13 @@ func _input(event):
 				var selected_piece_prev_pos = selected_piece.chess_pos
 				move_piece(selected_piece.chess_pos, tile_clicked)
 
-				if(selected_piece.type == PAWN && abs(selected_piece_prev_pos.y - tile_clicked.y) == 2):
-					pawn_that_doubled_last_move = selected_piece
-				else:
-					pawn_that_doubled_last_move = null
-
-				if(selected_piece.type == PAWN):
-					if(selected_piece.color == WHITE && selected_piece.chess_pos.y == 7):
-						selected_piece.type = QUEEN
-					if(selected_piece.color == BLACK && selected_piece.chess_pos.y == 0):
-						selected_piece.type = QUEEN
-
-				if(selected_piece.type == KING):
-					castling_trackers[selected_piece.color].has_king_moved = true
-				if(selected_piece.type == ROOK):
-					if(selected_piece_prev_pos == Vector2(0, 0)):
-						castling_trackers[WHITE].has_queen_rook_moved = true
-					if(selected_piece_prev_pos == Vector2(7, 0)):
-						castling_trackers[WHITE].has_king_rook_moved = true
-					if(selected_piece_prev_pos == Vector2(0, 7)):
-						castling_trackers[BLACK].has_queen_rook_moved = true
-					if(selected_piece_prev_pos == Vector2(7, 7)):
-						castling_trackers[BLACK].has_king_rook_moved = true
-
-				color_to_move = opposite_color(color_to_move)
-
-				# NOTE(hugo): Check stopping condition
-				if(is_current_player_checkmate()):
-					stop_game = true
-					print("Checkmate!")
-				if(is_draw()):
-					stop_game = true
-					print("Draw!")
+				post_move(selected_piece, selected_piece_prev_pos, tile_clicked)
 
 				highlighted_tiles = []
+				#update()
+
+				# NOTE(hugo): AI Turn
+				#ai_move()
 
 			else:
 				selected_piece = get_piece_at_tile(tile_clicked)
@@ -180,6 +212,7 @@ func create_piece(color, type, chess_pos):
 
 func move_piece(move_from, move_to):
 	var piece_to_move = get_piece_at_tile(move_from)
+	assert(piece_to_move)
 	var taken_piece = get_piece_at_tile(move_to)
 	if(taken_piece != null):
 		piece_list.erase(taken_piece)
