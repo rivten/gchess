@@ -2,7 +2,6 @@ extends Node2D
 
 # TODO(hugo):
 #     - proper pat
-#     - castling management
 #     - refactor movement to have something more flexible (a movement is a piece with a from and to tile, + maybe special moves (castling, en passant))
 #     - basic IA
 
@@ -187,7 +186,7 @@ func move_piece(move_from, move_to):
 		piece_list.erase(taken_piece)
 	else:
 		# NOTE(hugo): check if the taken piece is en passant
-		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - selected_piece.chess_pos.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - selected_piece.chess_pos.y) == 0):
+		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - move_from.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - move_from.y) == 0):
 			piece_list.erase(pawn_that_doubled_last_move)
 		else:
 			# NOTE(hugo): check if that was a castling
