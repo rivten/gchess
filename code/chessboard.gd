@@ -116,6 +116,12 @@ func _input(event):
 				else:
 					pawn_that_doubled_last_move = null
 
+				if(selected_piece.type == PAWN):
+					if(selected_piece.color == WHITE && selected_piece.chess_pos.y == 7):
+						selected_piece.type = QUEEN
+					if(selected_piece.color == BLACK && selected_piece.chess_pos.y == 0):
+						selected_piece.type = QUEEN
+
 				color_to_move = opposite_color(color_to_move)
 
 				# NOTE(hugo): Check stopping condition
@@ -144,10 +150,6 @@ func get_tile_clicked(mouse_pos):
 func create_piece(color, type, chess_pos):
 	piece_list.append(Piece.new(color, type, chess_pos))
 
-# NOTE(hugo): this function must not have
-# any side effects since it is used
-# to apply a 'fake' move when checking is a move
-# is possible and the king is not under check after it
 func move_piece(move_from, move_to):
 	var taken_piece = get_piece_at_tile(move_to)
 	if(taken_piece != null):
@@ -372,19 +374,6 @@ func add_all_pos_in_dir(piece, dir):
 
 	return(result)
 
-# NOTE(hugo): Debug
-func print_state():
-	print("-----------------------------")
-	print("Color to move : " + str(color_to_move))
-	if(pawn_that_doubled_last_move):
-		print("Double pawn pos : " + str(pawn_that_doubled_last_move.chess_pos))
-	else:
-		print("Double pawn pos : Null")
-	print("Selected : " + selected_piece.str_piece())
-	print("Piece List")
-	for piece in piece_list:
-		print(piece.str_piece())
-
 func has_move_available(color_to_move):
 	for piece in piece_list:
 		if(piece.color == color_to_move):
@@ -392,7 +381,6 @@ func has_move_available(color_to_move):
 			if(moves.size() != 0):
 				return(true)
 	return(false)
-
 
 func is_current_player_checkmate():
 	if(is_king_in_check(color_to_move)):
@@ -406,4 +394,18 @@ func is_pat():
 		return(!has_move_available(color_to_move))
 	else:
 		return(false)
+
+#########################################################
+# NOTE(hugo): Debug
+func print_state():
+	print("-----------------------------")
+	print("Color to move : " + str(color_to_move))
+	if(pawn_that_doubled_last_move):
+		print("Double pawn pos : " + str(pawn_that_doubled_last_move.chess_pos))
+	else:
+		print("Double pawn pos : Null")
+	print("Selected : " + selected_piece.str_piece())
+	print("Piece List")
+	for piece in piece_list:
+		print(piece.str_piece())
 
