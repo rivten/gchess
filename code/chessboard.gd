@@ -63,10 +63,10 @@ func create_chessboard():
 	create_piece(BLACK, BISHOP, Vector2(2, 7))
 	create_piece(BLACK, BISHOP, Vector2(5, 7))
 
-	create_piece(WHITE, QUEEN, Vector2(4, 0))
-	create_piece(BLACK, QUEEN, Vector2(4, 7))
-	create_piece(WHITE, KING, Vector2(3, 0))
-	create_piece(BLACK, KING, Vector2(3, 7))
+	create_piece(WHITE, QUEEN, Vector2(3, 0))
+	create_piece(BLACK, QUEEN, Vector2(3, 7))
+	create_piece(WHITE, KING, Vector2(4, 0))
+	create_piece(BLACK, KING, Vector2(4, 7))
 
 func _ready():
 	load_textures()
