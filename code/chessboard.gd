@@ -1,8 +1,8 @@
 extends Node2D
 
 # TODO(hugo):
-#     - refactor movement to have something more flexible (a movement is a piece with a from and to tile, + maybe special moves (castling, en passant))
-#     - basic IA
+#    - error : when checking for castling, a rook could have not moved, but have been taken
+#              therefore invalidating the castling... (null error)
 
 enum PieceColor {WHITE, BLACK}
 enum PieceType {KING, QUEEN, ROOK, KNIGHT, BISHOP, PAWN}
@@ -140,6 +140,7 @@ func get_random_piece(color):
 	for piece in piece_list:
 		if(piece.color == color):
 			pieces_of_color.append(piece)
+	randomize()
 	var random_index = randi() % pieces_of_color.size()
 	return(pieces_of_color[random_index])
 
@@ -153,6 +154,7 @@ func ai_move():
 		if(moves.size() == 0):
 			random_piece = null
 	assert(random_piece)
+	randomize()
 	var random_index = randi() % moves.size()
 	var random_move_to = moves[random_index]
 	var random_piece_prev_pos = random_piece.chess_pos
@@ -191,7 +193,7 @@ func post_move(moved_piece, moved_piece_prev_pos, move_to):
 	if(is_current_player_checkmate()):
 		stop_game = true
 		print("Checkmate!")
-	if(is_draw()):
+	elif(is_draw()):
 		stop_game = true
 		print("Draw!")
 
@@ -204,9 +206,11 @@ func _input(event):
 				var move = ChessMove.new(selected_piece.chess_pos, tile_clicked)
 				move_piece(move)
 
+				highlighted_tiles = []
 				post_move(selected_piece, selected_piece_prev_pos, tile_clicked)
 
-				highlighted_tiles = []
+				if(stop_game):
+					return
 
 				# NOTE(hugo): AI Turn
 				ai_move()
@@ -636,4 +640,9 @@ func print_state():
 	print("Piece List")
 	for piece in piece_list:
 		print(piece.str_piece())
+
+func debug_chess_config():
+	create_piece(WHITE, QUEEN, Vector2(0, 6))
+	create_piece(WHITE, KING, Vector2(4, 5))
+	create_piece(BLACK, KING, Vector2(4, 7))
 
