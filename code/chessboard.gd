@@ -42,6 +42,22 @@ class CastlingTracker:
 #####################################################
 
 
+#####################################################
+# {
+class ChessMove:
+	var from = null
+	var to = null
+	var is_castling_king_side = false
+	var is_castling_queen_side = false
+	var deleted_pieces = []
+	var moved_piece = null
+
+	func _init(move_from, move_to):
+		from = move_from
+		to = move_to
+# }
+#####################################################
+
 const TILE_SIZE = 64.0
 const color_white = Color(1.0, 1.0, 1.0, 1.0)
 const color_green = Color(64.0 / 255.0, 146.0 / 255.0, 59.0 / 255.0)
@@ -140,7 +156,9 @@ func ai_move():
 	var random_index = randi() % moves.size()
 	var random_move_to = moves[random_index]
 	var random_piece_prev_pos = random_piece.chess_pos
-	move_piece(random_piece.chess_pos, random_move_to)
+
+	var ai_move = ChessMove.new(random_piece.chess_pos, random_move_to)
+	move_piece(ai_move)
 	post_move(random_piece, random_piece_prev_pos, random_move_to)
 
 func post_move(moved_piece, moved_piece_prev_pos, move_to):
@@ -177,22 +195,21 @@ func post_move(moved_piece, moved_piece_prev_pos, move_to):
 		stop_game = true
 		print("Draw!")
 
-
 func _input(event):
 	if event is InputEventMouseButton:
 		if(!stop_game):
 			var tile_clicked = get_tile_clicked(event.position)
 			if(is_highlighted(tile_clicked)):
 				var selected_piece_prev_pos = selected_piece.chess_pos
-				move_piece(selected_piece.chess_pos, tile_clicked)
+				var move = ChessMove.new(selected_piece.chess_pos, tile_clicked)
+				move_piece(move)
 
 				post_move(selected_piece, selected_piece_prev_pos, tile_clicked)
 
 				highlighted_tiles = []
-				#update()
 
 				# NOTE(hugo): AI Turn
-				#ai_move()
+				ai_move()
 
 			else:
 				selected_piece = get_piece_at_tile(tile_clicked)
@@ -210,32 +227,37 @@ func get_tile_clicked(mouse_pos):
 func create_piece(color, type, chess_pos):
 	piece_list.append(Piece.new(color, type, chess_pos))
 
-func move_piece(move_from, move_to):
-	var piece_to_move = get_piece_at_tile(move_from)
+func move_piece(move):
+	var piece_to_move = get_piece_at_tile(move.from)
 	assert(piece_to_move)
-	var taken_piece = get_piece_at_tile(move_to)
+	move.moved_piece = piece_to_move
+	var taken_piece = get_piece_at_tile(move.to)
 	if(taken_piece != null):
+		move.deleted_pieces.append(taken_piece)
 		piece_list.erase(taken_piece)
 	else:
 		# NOTE(hugo): check if the taken piece is en passant
-		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - move_from.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - move_from.y) == 0):
+		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - move.from.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - move.from.y) == 0):
+			move.deleted_pieces.append(pawn_that_doubled_last_move)
 			piece_list.erase(pawn_that_doubled_last_move)
 		else:
 			# NOTE(hugo): check if that was a castling
-			if(piece_to_move.type == KING && abs(move_from.x - move_to.x) == 2):
+			if(piece_to_move.type == KING && abs(move.from.x - move.to.x) == 2):
 				var row = get_base_row(color_to_move)
-				if(move_from.x > move_to.x):
+				if(move.from.x > move.to.x):
 					# NOTE(hugo): Castle queen side
 					var queen_rook = get_piece_at_tile(Vector2(0, row))
 					assert(queen_rook.type == ROOK)
 					queen_rook.chess_pos = Vector2(3, row)
+					move.is_castling_queen_side = true
 				else:
 					# NOTE(hugo): Castle king side
 					var king_rook = get_piece_at_tile(Vector2(7, row))
 					assert(king_rook.type == ROOK)
 					king_rook.chess_pos = Vector2(5, row)
+					move.is_castling_king_side = true
 
-	piece_to_move.chess_pos = move_to
+	piece_to_move.chess_pos = move.to
 
 func display_possible_moves(tile_clicked):
 	highlighted_tiles = []
@@ -285,31 +307,38 @@ func is_king_in_check(player_color):
 					return(true)
 	return(false)
 
+func undo_castling_king_side(color):
+	# NOTE(hugo): King is alreay undone
+	# Only undo the rook
+	var row = get_base_row(color)
+	var rook_piece = get_piece_at_tile(Vector2(5, row))
+	assert(rook_piece.type == ROOK)
+	rook_piece.chess_pos = Vector2(7, row)
+
+func undo_castling_queen_side(color):
+	var row = get_base_row(color)
+	var rook_piece = get_piece_at_tile(Vector2(3, row))
+	assert(rook_piece.type == ROOK)
+	rook_piece.chess_pos = Vector2(0, row)
+
+func undo_move(move):
+	assert(move.moved_piece)
+	assert(move.moved_piece.chess_pos == move.to)
+	move.moved_piece.chess_pos = move.from
+	piece_list += move.deleted_pieces
+	if(move.is_castling_king_side):
+		undo_castling_king_side(move.moved_piece.color)
+	if(move.is_castling_queen_side):
+		undo_castling_queen_side(move.moved_piece.color)
+
 func is_king_in_check_with_move(move_from, move_to, player_color):
 	# TODO(hugo): I don't think this could take into account a
 	# en-passant move that could put the king in check :(
-	var previous_board_state = []
-	for piece in piece_list:
-		previous_board_state.append(Piece.new(piece.color, piece.type, piece.chess_pos))
-
-	var selected_piece_save_pos = selected_piece.chess_pos
-	var en_passant_save_pos = null
-	if(pawn_that_doubled_last_move):
-		en_passant_save_pos = pawn_that_doubled_last_move.chess_pos
-
-	move_piece(move_from, move_to)
-
+	var move = ChessMove.new(move_from, move_to)
+	move_piece(move)
 	var result = is_king_in_check(player_color)
-
 	# NOTE(hugo): Reset to previous state
-	piece_list.clear()
-	for piece in previous_board_state:
-		piece_list.append(Piece.new(piece.color, piece.type, piece.chess_pos))
-
-	selected_piece = get_piece_at_tile(selected_piece_save_pos)
-	if(en_passant_save_pos):
-		pawn_that_doubled_last_move = get_piece_at_tile(en_passant_save_pos)
-
+	undo_move(move)
 	return(result)
 
 func delete_moves_that_makes_check(move_from, move_list, player_color):
