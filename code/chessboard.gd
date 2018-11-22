@@ -144,6 +144,33 @@ func get_random_piece(color):
 	var random_index = randi() % pieces_of_color.size()
 	return(pieces_of_color[random_index])
 
+func score_piece(piece):
+	var multiplier = 1
+	if(piece.color == BLACK):
+		multiplier = -1
+	var abs_score = 0
+	match piece.type:
+		KING:
+			abs_score = 900
+		QUEEN:
+			abs_score = 90
+		ROOK:
+			abs_score = 50
+		BISHOP:
+			abs_score = 30
+		KNIGHT:
+			abs_score = 30
+		PAWN:
+			abs_score = 10
+
+	return(multiplier * abs_score)
+
+func evaluate_board():
+	var eval = 0
+	for piece in piece_list:
+		eval += score_piece(piece)
+	return(eval)
+
 func ai_move():
 	assert(color_to_move == BLACK)
 	var random_piece = null
