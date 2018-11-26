@@ -11,13 +11,13 @@ config_version=3
 [application]
 
 config/name="gchess"
-run/main_scene="res://data/scenes/chessboard.tscn"
+run/main_scene="res://data/scenes/game.tscn"
 config/icon="res://icon.png"
 
 [display]
 
 window/size/width=512
-window/size/height=512
+window/size/height=768
 window/size/resizable=false
 
 [rendering]
