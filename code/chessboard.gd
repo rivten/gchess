@@ -171,24 +171,116 @@ func evaluate_board():
 		eval += score_piece(piece)
 	return(eval)
 
+
+#####################################################
+# {
+class MinimaxResult:
+	var move
+	var eval_move
+# }
+#####################################################
+
+func get_all_move_list(color):
+	var result = []
+	for piece in piece_list:
+		if(piece.color == color_to_move):
+			var move_to_list = get_possible_moves(piece.chess_pos)
+			for move_to in move_to_list:
+				result.append(ChessMove.new(piece.chess_pos, move_to))
+	return(result)
+
+func get_best_move(color):
+	var move_list = get_all_move_list(color)
+
+	var is_maximazing = (color == WHITE)
+	if(is_maximazing):
+		var result = MinimaxResult.new()
+		result.move = null
+		result.eval_move = -99999
+		for move in move_list:
+			var test_move = ChessMove.new(move.from, move.to)
+			move_piece(test_move)
+			var eval = evaluate_board()
+			if(eval > result.eval_move):
+				result.eval_move = eval
+				result.move = move
+			undo_move(test_move)
+		return(result)
+	else:
+		var result = MinimaxResult.new()
+		result.move = null
+		result.eval_move = 99999
+		for move in move_list:
+			var test_move = ChessMove.new(move.from, move.to)
+			move_piece(test_move)
+			var eval = evaluate_board()
+			if(eval < result.eval_move):
+				result.eval_move = eval
+				result.move = move
+			undo_move(test_move)
+		return(result)
+
+
+func minimax(depth, color):
+	assert(depth >= 0)
+	if(depth == 0):
+		return get_best_move(color)
+	var move_list = get_all_move_list(color)
+	assert(move_list.size() != 0) # NOTE(hugo): Should detect this sooner
+	var is_maximazing = (color == WHITE)
+	if(is_maximazing):
+		var result = MinimaxResult.new()
+		result.move = null
+		result.eval_move = -99999
+		for move in move_list:
+			var test_move = ChessMove.new(move.from, move.to)
+			move_piece(test_move)
+			var minimax_recur = minimax(depth - 1, opposite_color(color))
+			undo_move(test_move)
+			if(minimax_recur.eval_move > result.eval_move):
+				result.eval_move = minimax_recur.eval_move
+				result.move = minimax_recur.move
+
+		return(result)
+	else:
+		var result = MinimaxResult.new()
+		result.move = null
+		result.eval_move = 99999
+		for move in move_list:
+			var test_move = ChessMove.new(move.from, move.to)
+			move_piece(test_move)
+			var minimax_recur = minimax(depth - 1, opposite_color(color))
+			undo_move(test_move)
+			if(minimax_recur.eval_move < result.eval_move):
+				result.eval_move = minimax_recur.eval_move
+				result.move = minimax_recur.move
+
+		return(result)
+
 func ai_move():
 	assert(color_to_move == BLACK)
-	var random_piece = null
-	var moves = []
-	while !random_piece:
-		random_piece = get_random_piece(color_to_move)
-		moves = get_possible_moves(random_piece.chess_pos)
-		if(moves.size() == 0):
-			random_piece = null
-	assert(random_piece)
-	randomize()
-	var random_index = randi() % moves.size()
-	var random_move_to = moves[random_index]
-	var random_piece_prev_pos = random_piece.chess_pos
+	#var random_piece = null
+	#var moves = []
+	#while !random_piece:
+	#	random_piece = get_random_piece(color_to_move)
+	#	moves = get_possible_moves(random_piece.chess_pos)
+	#	if(moves.size() == 0):
+	#		random_piece = null
+	#assert(random_piece)
+	#randomize()
+	#var random_index = randi() % moves.size()
+	#var random_move_to = moves[random_index]
+	#var random_piece_prev_pos = random_piece.chess_pos
 
-	var ai_move = ChessMove.new(random_piece.chess_pos, random_move_to)
+	#var ai_move = ChessMove.new(random_piece.chess_pos, random_move_to)
+	var minimax_move = minimax(1, color_to_move)
+	var ai_move = minimax_move.move
+	assert(ai_move)
+	var piece = get_piece_at_tile(ai_move.from)
+	var piece_prev_pos = ai_move.from
+	var move_to = ai_move.to
 	move_piece(ai_move)
-	post_move(random_piece, random_piece_prev_pos, random_move_to)
+	post_move(piece, piece_prev_pos, move_to)
 
 func post_move(moved_piece, moved_piece_prev_pos, move_to):
 	if(moved_piece.type == PAWN && abs(moved_piece_prev_pos.y - move_to.y) == 2):
