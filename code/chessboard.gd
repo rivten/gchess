@@ -47,14 +47,22 @@ class CastlingTracker:
 class ChessMove:
 	var from = null
 	var to = null
-	var is_castling_king_side = false
-	var is_castling_queen_side = false
-	var deleted_pieces = []
-	var moved_piece = null
 
 	func _init(move_from, move_to):
 		from = move_from
 		to = move_to
+# }
+#####################################################
+
+#####################################################
+# {
+class ChessMoveConsequence:
+	var from = null
+	var to = null
+	var is_castling_king_side = false
+	var is_castling_queen_side = false
+	var deleted_pieces = []
+	var moved_piece = null
 # }
 #####################################################
 
@@ -186,7 +194,7 @@ func get_all_move_list(color):
 		if(piece.color == color_to_move):
 			var move_to_list = get_possible_moves(piece.chess_pos)
 			for move_to in move_to_list:
-				result.append(ChessMove.new(piece.chess_pos, move_to))
+				result.append(ChessMove.new(Vector2(piece.chess_pos.x, piece.chess_pos.y), move_to))
 	return(result)
 
 func get_best_move(color):
@@ -199,12 +207,12 @@ func get_best_move(color):
 		result.eval_move = -99999
 		for move in move_list:
 			var test_move = ChessMove.new(move.from, move.to)
-			move_piece(test_move)
+			var move_consequence = move_piece(test_move)
 			var eval = evaluate_board()
 			if(eval > result.eval_move):
 				result.eval_move = eval
-				result.move = move
-			undo_move(test_move)
+				result.move = ChessMove.new(move.from, move.to)
+			undo_move(move_consequence)
 		return(result)
 	else:
 		var result = MinimaxResult.new()
@@ -212,12 +220,12 @@ func get_best_move(color):
 		result.eval_move = 99999
 		for move in move_list:
 			var test_move = ChessMove.new(move.from, move.to)
-			move_piece(test_move)
+			var move_consequence = move_piece(test_move)
 			var eval = evaluate_board()
 			if(eval < result.eval_move):
 				result.eval_move = eval
-				result.move = move
-			undo_move(test_move)
+				result.move = ChessMove.new(move.from, move.to)
+			undo_move(move_consequence)
 		return(result)
 
 
@@ -234,12 +242,12 @@ func minimax(depth, color):
 		result.eval_move = -99999
 		for move in move_list:
 			var test_move = ChessMove.new(move.from, move.to)
-			move_piece(test_move)
+			var move_consequence = move_piece(test_move)
 			var minimax_recur = minimax(depth - 1, opposite_color(color))
-			undo_move(test_move)
 			if(minimax_recur.eval_move > result.eval_move):
 				result.eval_move = minimax_recur.eval_move
-				result.move = minimax_recur.move
+				result.move = ChessMove.new(test_move.from, test_move.to)
+			undo_move(move_consequence)
 
 		return(result)
 	else:
@@ -248,12 +256,12 @@ func minimax(depth, color):
 		result.eval_move = 99999
 		for move in move_list:
 			var test_move = ChessMove.new(move.from, move.to)
-			move_piece(test_move)
+			var move_consequence = move_piece(test_move)
 			var minimax_recur = minimax(depth - 1, opposite_color(color))
-			undo_move(test_move)
 			if(minimax_recur.eval_move < result.eval_move):
 				result.eval_move = minimax_recur.eval_move
-				result.move = minimax_recur.move
+				result.move = ChessMove.new(test_move.from, test_move.to)
+			undo_move(move_consequence)
 
 		return(result)
 
@@ -273,10 +281,11 @@ func ai_move():
 	#var random_piece_prev_pos = random_piece.chess_pos
 
 	#var ai_move = ChessMove.new(random_piece.chess_pos, random_move_to)
-	var minimax_move = minimax(1, color_to_move)
+	var minimax_move = minimax(2, color_to_move)
 	var ai_move = minimax_move.move
-	assert(ai_move)
+	assert(ai_move != null)
 	var piece = get_piece_at_tile(ai_move.from)
+	assert(piece != null)
 	var piece_prev_pos = ai_move.from
 	var move_to = ai_move.to
 	move_piece(ai_move)
@@ -351,17 +360,21 @@ func create_piece(color, type, chess_pos):
 	piece_list.append(Piece.new(color, type, chess_pos))
 
 func move_piece(move):
+	var move_consequence = ChessMoveConsequence.new()
+	move_consequence.from = move.from
+	move_consequence.to = move.to
+
 	var piece_to_move = get_piece_at_tile(move.from)
 	assert(piece_to_move)
-	move.moved_piece = piece_to_move
+	move_consequence.moved_piece = piece_to_move
 	var taken_piece = get_piece_at_tile(move.to)
 	if(taken_piece != null):
-		move.deleted_pieces.append(taken_piece)
+		move_consequence.deleted_pieces.append(taken_piece)
 		piece_list.erase(taken_piece)
 	else:
 		# NOTE(hugo): check if the taken piece is en passant
 		if(pawn_that_doubled_last_move && abs(pawn_that_doubled_last_move.chess_pos.x - move.from.x) == 1 && abs(pawn_that_doubled_last_move.chess_pos.y - move.from.y) == 0):
-			move.deleted_pieces.append(pawn_that_doubled_last_move)
+			move_consequence.deleted_pieces.append(pawn_that_doubled_last_move)
 			piece_list.erase(pawn_that_doubled_last_move)
 		else:
 			# NOTE(hugo): check if that was a castling
@@ -370,17 +383,19 @@ func move_piece(move):
 				if(move.from.x > move.to.x):
 					# NOTE(hugo): Castle queen side
 					var queen_rook = get_piece_at_tile(Vector2(0, row))
+					assert(queen_rook != null)
 					assert(queen_rook.type == ROOK)
 					queen_rook.chess_pos = Vector2(3, row)
-					move.is_castling_queen_side = true
+					move_consequence.is_castling_queen_side = true
 				else:
 					# NOTE(hugo): Castle king side
 					var king_rook = get_piece_at_tile(Vector2(7, row))
 					assert(king_rook.type == ROOK)
 					king_rook.chess_pos = Vector2(5, row)
-					move.is_castling_king_side = true
+					move_consequence.is_castling_king_side = true
 
 	piece_to_move.chess_pos = move.to
+	return(move_consequence)
 
 func display_possible_moves(tile_clicked):
 	highlighted_tiles = []
@@ -435,12 +450,14 @@ func undo_castling_king_side(color):
 	# Only undo the rook
 	var row = get_base_row(color)
 	var rook_piece = get_piece_at_tile(Vector2(5, row))
+	assert(rook_piece != null)
 	assert(rook_piece.type == ROOK)
 	rook_piece.chess_pos = Vector2(7, row)
 
 func undo_castling_queen_side(color):
 	var row = get_base_row(color)
 	var rook_piece = get_piece_at_tile(Vector2(3, row))
+	assert(rook_piece != null)
 	assert(rook_piece.type == ROOK)
 	rook_piece.chess_pos = Vector2(0, row)
 
@@ -458,10 +475,10 @@ func is_king_in_check_with_move(move_from, move_to, player_color):
 	# TODO(hugo): I don't think this could take into account a
 	# en-passant move that could put the king in check :(
 	var move = ChessMove.new(move_from, move_to)
-	move_piece(move)
+	var move_consequence = move_piece(move)
 	var result = is_king_in_check(player_color)
 	# NOTE(hugo): Reset to previous state
-	undo_move(move)
+	undo_move(move_consequence)
 	return(result)
 
 func delete_moves_that_makes_check(move_from, move_list, player_color):
